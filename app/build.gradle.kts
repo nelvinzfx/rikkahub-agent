@@ -16,7 +16,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "excp.rikkahub"
+        applicationId = "forge.rikkahub"
         minSdk = 26
         targetSdk = 37
         versionCode = 164
