@@ -136,6 +136,15 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val isBigScreen =
         windowAdaptiveInfo.width > windowAdaptiveInfo.height && windowAdaptiveInfo.width >= 1100.dp
 
+    // Reset drawer state when transitioning between big/small screen to prevent
+    // the PermanentNavigationDrawer's always-open state from leaking into the
+    // ModalNavigationDrawer when rotating back to portrait.
+    LaunchedEffect(isBigScreen) {
+        if (!isBigScreen && drawerState.isOpen) {
+            drawerState.close()
+        }
+    }
+
     val inputState = vm.inputState
 
     // 初始化输入状态（处理传入的 files 和 text 参数）
