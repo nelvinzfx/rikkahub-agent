@@ -1,0 +1,13 @@
+# Signing configuration template — copy to local.properties and fill in real values.
+# local.properties is gitignored and will NEVER be committed.
+#
+# The keystore file path must match what CI uses (app/app.key in GitHub Actions,
+# or rikkahub-release.keystore locally).
+#
+# To verify CI uses the same key: base64 your local keystore and compare with
+# the KEY_BASE64 GitHub secret.
+
+storeFile=rikkahub-release.keystore
+storePassword=<your-store-password>
+keyAlias=<your-key-alias>
+keyPassword=<your-key-password>
