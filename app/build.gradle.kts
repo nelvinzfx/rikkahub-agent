@@ -25,11 +25,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
+            // When using splits.abi, ndk.abiFilters must be empty to avoid conflict.
+            // The splits config handles ABI filtering; ndk.abiFilters only needed for bundle.
             val abis = (project.findProperty("abiFilters") as? String)
                 ?.split(",")
                 ?.map { it.trim() }
                 ?: listOf("arm64-v8a", "x86_64")
-            abiFilters += abis
+            val isBuildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
+            if (isBuildingBundle) {
+                abiFilters += abis
+            }
+            // For APK builds, splits.abi handles it — leave ndk.abiFilters empty
         }
     }
 
