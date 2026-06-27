@@ -26,51 +26,44 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dokar.sonner.ToastType
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import com.dokar.sonner.ToastType
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowRight01
+import me.rerere.rikkahub.ui.context.LocalToaster
 
 private const val BRANCH_MID = "├── "
 private const val BRANCH_END = "└── "
 private const val PIPE = "│   "
 private const val SPACE = "    "
 
-private val treeStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 12.sp,
-)
+private val treeFont = FontFamily.Monospace
+private const val treeFontSize = 11f
+private const val treeLineHeight = 12f
 
-private val treeKeyStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 12.sp,
-)
-
-private val treeValueStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 12.sp,
+private val treeStyle = SpanStyle(
+    fontFamily = treeFont,
+    fontSize = treeFontSize.sp,
+    lineHeight = treeLineHeight.sp,
 )
 
 /**
  * Tree-style JSON parameter display for tool calls.
  * Renders like the Unix `tree` command with ├── │ └── box-drawing characters.
- * Lines are seamless — no vertical padding between rows, lineHeight tightly
- * matches fontSize so │ chars connect perfectly.
+ * Multi-line values get proper │ continuation prefix on each wrapped line.
  * Skips empty objects/arrays/blank values entirely.
  * Fast typing animation when [loading] is true.
  */
@@ -121,6 +114,7 @@ private fun TreeChildren(
             value = value,
             prefix = prefix,
             branch = branch,
+            isLast = isLast,
             childPrefix = childPrefix,
             loading = loading,
         )
@@ -133,9 +127,14 @@ private fun TreeNode(
     value: JsonElement,
     prefix: String,
     branch: String,
+    isLast: Boolean,
     childPrefix: String,
     loading: Boolean,
 ) {
+    val branchColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    val keyColor = MaterialTheme.colorScheme.secondary
+    val valColor = MaterialTheme.colorScheme.onSurfaceVariant
+
     when (value) {
         is JsonObject -> {
             if (value.isEmpty()) return
@@ -148,9 +147,14 @@ private fun TreeNode(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = prefix + branch,
-                    style = treeStyle,
-                    color = treeColor,
+                    text = buildAnnotatedString {
+                        withStyle(treeStyle.copy(color = branchColor)) {
+                            append(prefix + branch)
+                        }
+                        withStyle(treeStyle.copy(color = keyColor)) {
+                            append(" $key")
+                        }
+                    },
                 )
                 Icon(
                     imageVector = if (expanded) HugeIcons.ArrowDown01 else HugeIcons.ArrowRight01,
@@ -158,13 +162,7 @@ private fun TreeNode(
                     modifier = Modifier.size(11.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    text = " $key",
-                    style = treeKeyStyle,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
             }
-            // No AnimatedVisibility — instant show/hide keeps lines seamless
             if (expanded) {
                 TreeChildren(value, prefix = childPrefix, loading = loading)
             }
@@ -181,20 +179,20 @@ private fun TreeNode(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = prefix + branch,
-                    style = treeStyle,
-                    color = treeColor,
+                    text = buildAnnotatedString {
+                        withStyle(treeStyle.copy(color = branchColor)) {
+                            append(prefix + branch)
+                        }
+                        withStyle(treeStyle.copy(color = keyColor)) {
+                            append(" $key (${value.size})")
+                        }
+                    },
                 )
                 Icon(
                     imageVector = if (expanded) HugeIcons.ArrowDown01 else HugeIcons.ArrowRight01,
                     contentDescription = null,
                     modifier = Modifier.size(11.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = " $key (${value.size})",
-                    style = treeKeyStyle,
-                    color = MaterialTheme.colorScheme.secondary,
                 )
             }
             if (expanded) {
@@ -208,80 +206,87 @@ private fun TreeNode(
             val context = LocalContext.current
             val toaster = LocalToaster.current
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = {
-                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            cm.setPrimaryClip(ClipData.newPlainText("value", content))
-                            toaster.show("Copied", type = ToastType.Success)
-                        },
-                    ),
-                verticalAlignment = Alignment.Top,
-            ) {
+            val lines = content.lines()
+            // Continuation prefix: │ or spaces, aligned with where value text starts
+            val contPrefix = prefix + (if (isLast) SPACE else PIPE)
+            val padAfterBranch = " ".repeat(key.length + 2) // align after "key: "
+
+            val annotated = buildAnnotatedString {
+                // First line: prefix + branch + "key: " + value
+                withStyle(treeStyle.copy(color = branchColor)) {
+                    append(prefix + branch)
+                }
+                withStyle(treeStyle.copy(color = keyColor)) {
+                    append("$key: ")
+                }
+                withStyle(treeStyle.copy(color = valColor)) {
+                    append(lines.first())
+                }
+                // Continuation lines: contPrefix + padding + line
+                for (i in 1 until lines.size) {
+                    append("\n")
+                    withStyle(treeStyle.copy(color = branchColor)) {
+                        append(contPrefix + padAfterBranch)
+                    }
+                    withStyle(treeStyle.copy(color = valColor)) {
+                        append(lines[i])
+                    }
+                }
+            }
+
+            // Typing animation: reveal char by char when loading
+            if (loading && annotated.length > 1) {
+                val visibleCount by produceState(initialValue = 1, annotated) {
+                    for (i in 1..annotated.length) {
+                        value = i
+                        delay(8)
+                    }
+                }
+                val count = visibleCount.coerceIn(1, annotated.length)
                 Text(
-                    text = prefix + branch,
-                    style = treeStyle,
-                    color = treeColor,
+                    text = annotated.subSequence(0, count),
+                    style = treeStyle.toTextStyle(),
+                    maxLines = 50,
+                    overflow = TextOverflow.Visible,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("value", content))
+                                toaster.show("Copied", type = ToastType.Success)
+                            },
+                        ),
                 )
+            } else {
                 Text(
-                    text = "$key: ",
-                    style = treeKeyStyle,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-                TypingText(
-                    text = content,
-                    loading = loading,
-                    style = treeValueStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = annotated,
+                    style = treeStyle.toTextStyle(),
+                    maxLines = 50,
+                    overflow = TextOverflow.Visible,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("value", content))
+                                toaster.show("Copied", type = ToastType.Success)
+                            },
+                        ),
                 )
             }
         }
     }
 }
 
-/**
- * Fast typing animation: reveals text character by character when loading.
- * ~8ms per char — fast but visible. Full text immediately when not loading.
- */
-@Composable
-private fun TypingText(
-    text: String,
-    loading: Boolean,
-    style: TextStyle,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    if (!loading || text.length <= 1) {
-        Text(
-            text = text,
-            style = style,
-            color = color,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-        )
-        return
-    }
-
-    val visibleCount by produceState(initialValue = 1, text) {
-        for (i in 1..text.length) {
-            value = i
-            delay(8)
-        }
-    }
-
-    Text(
-        text = text.take(visibleCount),
-        style = style,
-        color = color,
-        maxLines = 4,
-        overflow = TextOverflow.Ellipsis,
+private fun SpanStyle.toTextStyle(): androidx.compose.ui.text.TextStyle =
+    androidx.compose.ui.text.TextStyle(
+        fontFamily = fontFamily,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
     )
-}
-
-private val treeColor
-    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
 
 private fun isEmptyValue(element: JsonElement): Boolean = when (element) {
     is JsonObject -> element.isEmpty()
