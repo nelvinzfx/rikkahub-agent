@@ -3,7 +3,6 @@ package me.rerere.rikkahub.ui.components.message.tools
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -38,7 +37,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import com.dokar.sonner.ToastType
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowRight01
 
@@ -205,6 +206,7 @@ private fun TreeNode(
             val content = value.contentOrNull ?: ""
             if (content.isBlank()) return
             val context = LocalContext.current
+            val toaster = LocalToaster.current
 
             Row(
                 modifier = Modifier
@@ -214,7 +216,7 @@ private fun TreeNode(
                         onLongClick = {
                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             cm.setPrimaryClip(ClipData.newPlainText("value", content))
-                            Toast.makeText(context, "Copied: $content", Toast.LENGTH_SHORT).show()
+                            toaster.show("Copied", type = ToastType.Success)
                         },
                     ),
                 verticalAlignment = Alignment.Top,
