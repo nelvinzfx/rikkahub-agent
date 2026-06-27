@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +51,8 @@ private const val BRANCH_MID = "├── "
 private const val BRANCH_END = "└── "
 private const val PIPE = "│   "
 private const val SPACE = "    "
+private const val MAX_VALUE_LINES = 15
+private const val MAX_TREE_HEIGHT = 300
 
 private val treeFont = FontFamily.Monospace
 private const val treeFontSize = 11f
@@ -80,7 +84,9 @@ fun ToolParamTree(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .heightIn(max = MAX_TREE_HEIGHT.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         TreeChildren(element, prefix = "", loading = loading)
@@ -205,7 +211,9 @@ private fun TreeNode(
             val context = LocalContext.current
             val toaster = LocalToaster.current
 
-            val lines = content.lines()
+            val allLines = content.lines()
+            val truncated = allLines.size > MAX_VALUE_LINES
+            val lines = if (truncated) allLines.take(MAX_VALUE_LINES) else allLines
             // Continuation prefix: │ or spaces, aligned with where value text starts
             val contPrefix = prefix + (if (isLast) SPACE else PIPE)
             val padAfterBranch = " ".repeat(key.length + 2) // align after "key: "
@@ -229,6 +237,16 @@ private fun TreeNode(
                     }
                     withStyle(treeStyle.copy(color = valColor)) {
                         append(lines[i])
+                    }
+                }
+                // Truncation indicator
+                if (truncated) {
+                    append("\n")
+                    withStyle(treeStyle.copy(color = branchColor)) {
+                        append(contPrefix + padAfterBranch)
+                    }
+                    withStyle(treeStyle.copy(color = valColor)) {
+                        append("... (${allLines.size - MAX_VALUE_LINES} more lines, view details)")
                     }
                 }
             }
