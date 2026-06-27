@@ -1,6 +1,5 @@
 package me.rerere.rikkahub.ui.components.message.tools
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,9 +41,29 @@ private const val BRANCH_END = "└── "
 private const val PIPE = "│   "
 private const val SPACE = "    "
 
+private val treeStyle = TextStyle(
+    fontFamily = FontFamily.Monospace,
+    fontSize = 11.sp,
+    lineHeight = 12.sp,
+)
+
+private val treeKeyStyle = TextStyle(
+    fontFamily = FontFamily.Monospace,
+    fontSize = 11.sp,
+    lineHeight = 12.sp,
+)
+
+private val treeValueStyle = TextStyle(
+    fontFamily = FontFamily.Monospace,
+    fontSize = 11.sp,
+    lineHeight = 12.sp,
+)
+
 /**
  * Tree-style JSON parameter display for tool calls.
  * Renders like the Unix `tree` command with ├── │ └── box-drawing characters.
+ * Lines are seamless — no vertical padding between rows, lineHeight tightly
+ * matches fontSize so │ chars connect perfectly.
  * Skips empty objects/arrays/blank values entirely.
  * Fast typing animation when [loading] is true.
  */
@@ -54,7 +73,6 @@ fun ToolParamTree(
     modifier: Modifier = Modifier,
     loading: Boolean = false,
 ) {
-    // Skip empty root
     if (element is JsonObject && element.isEmpty()) return
     if (element is JsonArray && element.isEmpty()) return
 
@@ -63,7 +81,7 @@ fun ToolParamTree(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         TreeChildren(element, prefix = "", loading = loading)
@@ -119,8 +137,7 @@ private fun TreeNode(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(4.dp))
-                    .clickable { expanded = !expanded }
-                    .padding(vertical = 0.5.dp),
+                    .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -140,10 +157,9 @@ private fun TreeNode(
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
-            AnimatedVisibility(visible = expanded) {
-                Column {
-                    TreeChildren(value, prefix = childPrefix, loading = loading)
-                }
+            // No AnimatedVisibility — instant show/hide keeps lines seamless
+            if (expanded) {
+                TreeChildren(value, prefix = childPrefix, loading = loading)
             }
         }
 
@@ -154,8 +170,7 @@ private fun TreeNode(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(4.dp))
-                    .clickable { expanded = !expanded }
-                    .padding(vertical = 0.5.dp),
+                    .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -175,10 +190,8 @@ private fun TreeNode(
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
-            AnimatedVisibility(visible = expanded) {
-                Column {
-                    TreeChildren(value, prefix = childPrefix, loading = loading)
-                }
+            if (expanded) {
+                TreeChildren(value, prefix = childPrefix, loading = loading)
             }
         }
 
@@ -187,9 +200,7 @@ private fun TreeNode(
             if (content.isBlank()) return
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 0.5.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
             ) {
                 Text(
@@ -253,24 +264,6 @@ private fun TypingText(
 
 private val treeColor
     @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-
-private val treeStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 15.sp,
-)
-
-private val treeKeyStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 15.sp,
-)
-
-private val treeValueStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontSize = 11.sp,
-    lineHeight = 15.sp,
-)
 
 private fun isEmptyValue(element: JsonElement): Boolean = when (element) {
     is JsonObject -> element.isEmpty()
