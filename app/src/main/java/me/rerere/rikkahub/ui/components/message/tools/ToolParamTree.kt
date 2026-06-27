@@ -57,7 +57,6 @@ private const val treeLineHeight = 12f
 private val treeStyle = SpanStyle(
     fontFamily = treeFont,
     fontSize = treeFontSize.sp,
-    lineHeight = treeLineHeight.sp,
 )
 
 /**
@@ -238,7 +237,7 @@ private fun TreeNode(
             if (loading && annotated.length > 1) {
                 val visibleCount by produceState(initialValue = 1, annotated) {
                     for (i in 1..annotated.length) {
-                        value = i
+                        this.value = i
                         delay(8)
                     }
                 }
@@ -285,7 +284,7 @@ private fun SpanStyle.toTextStyle(): androidx.compose.ui.text.TextStyle =
     androidx.compose.ui.text.TextStyle(
         fontFamily = fontFamily,
         fontSize = fontSize,
-        lineHeight = lineHeight,
+        lineHeight = treeLineHeight.sp,
     )
 
 private fun isEmptyValue(element: JsonElement): Boolean = when (element) {
