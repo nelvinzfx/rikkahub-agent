@@ -73,6 +73,22 @@ interface ToolUIRenderer {
     fun Summary(context: ToolUIContext) {
     }
 
+    /** Whether to show inline parameters tree when step is expanded.
+     * Default: true if arguments is a non-empty JSON object. */
+    fun hasInlineParams(context: ToolUIContext): Boolean {
+        val args = context.arguments
+        return args is kotlinx.serialization.json.JsonObject && args.isNotEmpty()
+    }
+
+    /** Inline parameters tree, shown when step is expanded */
+    @Composable
+    fun InlineParams(context: ToolUIContext) {
+        ToolParamTree(
+            element = context.arguments,
+            loading = context.loading,
+        )
+    }
+
     /** 点击步骤后的详情, 渲染在 BottomSheet 内 */
     @Composable
     fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {

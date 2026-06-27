@@ -32,6 +32,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import me.rerere.rikkahub.R
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -318,7 +320,12 @@ private class ChainOfThoughtScopeImpl : ChainOfThoughtScope {
                         }
                     )
                     .then(
-                        if (onClick != null) {
+                        if (onClick != null && hasContent) {
+                            // Both: label toggles expand/collapse, "View Details" link opens sheet
+                            Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { onExpandedChange(!expanded) }
+                        } else if (onClick != null) {
                             Modifier
                                 .clip(MaterialTheme.shapes.small)
                                 .clickable { onClick() }
@@ -381,8 +388,27 @@ private class ChainOfThoughtScopeImpl : ChainOfThoughtScope {
                     extra()
                 }
 
-                // 指示器：onClick 显示向右箭头，content 显示展开/折叠箭头
-                if (onClick != null) {
+                // 指示器：onClick+content 显示展开/折叠箭头 + details link
+                // onClick-only 显示向右箭头, content-only 显示展开/折叠箭头
+                if (onClick != null && hasContent) {
+                    if (expanded) {
+                        Text(
+                            text = stringResource(R.string.chat_message_tool_view_details),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { onClick() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                        )
+                    }
+                    Icon(
+                        imageVector = if (expanded) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (onClick != null) {
                     Icon(
                         imageVector = HugeIcons.ArrowRight01,
                         contentDescription = null,

@@ -110,7 +110,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
 
     // Summary detection is delegated to the registered renderer; image output and
     // denial reasons are common to all tools.
-    val hasExtraContent = renderer.hasSummary(context) || isDenied || images.isNotEmpty()
+    val hasExtraContent = renderer.hasSummary(context) || isDenied || images.isNotEmpty() || renderer.hasInlineParams(context)
 
     ControlledChainOfThoughtStep(
         expanded = expanded,
@@ -316,6 +316,9 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         content = if (hasExtraContent) {
             {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (renderer.hasInlineParams(context)) {
+                        renderer.InlineParams(context)
+                    }
                     renderer.Summary(context)
                     if (images.isNotEmpty()) {
                         LazyRow(
