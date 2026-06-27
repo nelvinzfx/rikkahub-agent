@@ -36,8 +36,13 @@ android {
             val isBuildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
             isEnable = !isBuildingBundle
             reset()
-            include("arm64-v8a", "x86_64")
-            isUniversalApk = true
+            // Allow overriding ABIs via -PabiFilters=arm64-v8a on CLI
+            val abis = (project.findProperty("abiFilters") as? String)
+                ?.split(",")
+                ?.map { it.trim() }
+                ?: listOf("arm64-v8a", "x86_64")
+            include(*abis.toTypedArray())
+            isUniversalApk = (project.findProperty("universalApk") as? String)?.toBoolean() ?: true
         }
     }
 
