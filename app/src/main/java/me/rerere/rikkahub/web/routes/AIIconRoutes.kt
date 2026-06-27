@@ -4,6 +4,7 @@ import android.content.Context
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.response.header
+import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
@@ -19,6 +20,40 @@ fun Route.aiIconRoutes(context: Context) {
                 ?: throw BadRequestException("Missing name")
             if (name.isEmpty()) {
                 throw BadRequestException("Missing name")
+            }
+
+            // Check for custom icon file first (file:// URI)
+            val customIcon = call.request.queryParameters["customIcon"]?.trim()
+            if (customIcon != null && customIcon.isNotEmpty()) {
+                if (customIcon.startsWith("file://")) {
+                    val file = java.io.File(android.net.Uri.parse(customIcon).path ?: "")
+                    if (file.exists()) {
+                        val ct = resolveContentType(file.name)
+                        call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                        call.response.header(HttpHeaders.ContentType, ct.toString())
+                        call.respondOutputStream {
+                            file.inputStream().use { it.copyTo(this) }
+                        }
+                        return@get
+                    }
+                } else if (customIcon.startsWith("http://") || customIcon.startsWith("https://")) {
+                    // For URL icons, redirect
+                    call.respondRedirect(customIcon)
+                    return@get
+                } else if (customIcon.startsWith("asset:")) {
+                    val assetPath = "icons/${customIcon.removePrefix("asset:")}"
+                    runCatching {
+                        context.assets.open(assetPath).use { input ->
+                            call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                            call.response.header(HttpHeaders.ContentType, resolveContentType(customIcon.removePrefix("asset:")).toString())
+                            call.respondOutputStream {
+                                input.copyTo(this)
+                            }
+                        }
+                    }.onSuccess {
+                        return@get
+                    }
+                }
             }
 
             val iconPath = computeAIIconByName(name)

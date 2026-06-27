@@ -650,7 +650,8 @@ private fun ExportedChatMessage(
                 name = iconLabel,
                 modifier = Modifier
                     .padding(top = 8.dp)
-                    .size(36.dp)
+                    .size(36.dp),
+                customIcon = model?.customIcon,
             )
 
             Text(

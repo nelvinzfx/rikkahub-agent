@@ -4,12 +4,17 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Package01
 import me.rerere.hugeicons.stroke.Connect
 import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.Edit03
+import me.rerere.hugeicons.stroke.Image03
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Refresh03
 import me.rerere.hugeicons.stroke.Tools
 import me.rerere.hugeicons.stroke.Share01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Cancel01
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +32,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -89,8 +97,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFilter
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dokar.sonner.ToastType
+import androidx.core.net.toUri
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.rerere.ai.provider.BuiltInTools
 import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.Model
@@ -108,6 +120,7 @@ import me.rerere.rikkahub.ui.components.ai.ModelSelector
 import me.rerere.rikkahub.ui.components.ai.ModelTypeTag
 import me.rerere.rikkahub.ui.components.ai.ProviderBalanceText
 import me.rerere.rikkahub.ui.components.nav.BackButton
+import me.rerere.rikkahub.ui.components.ui.AIIcon
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.ShareSheet
 import me.rerere.rikkahub.ui.components.ui.SiliconFlowPowerByIcon
@@ -523,6 +536,34 @@ private fun ModelSettingsForm(
 ) {
     val pagerState = rememberPagerState { 3 }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var showIconPicker by remember { mutableStateOf(false) }
+
+    val iconFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val targetDir = File(context.filesDir, "model_icons").apply { mkdirs() }
+                    val ext = when {
+                        uri.toString().endsWith(".svg", true) -> ".svg"
+                        uri.toString().endsWith(".png", true) -> ".png"
+                        uri.toString().endsWith(".webp", true) -> ".webp"
+                        uri.toString().endsWith(".jpg", true) || uri.toString().endsWith(".jpeg", true) -> ".jpg"
+                        else -> ".png"
+                    }
+                    val targetFile = File(targetDir, "icon_${System.currentTimeMillis()}$ext")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        targetFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    onModelChange(model.copy(customIcon = targetFile.toUri().toString()))
+                }
+            }
+        }
+    }
 
     fun setModelId(id: String) {
         val inputModality = ModelRegistry.MODEL_INPUT_MODALITIES.getData(id)
@@ -587,6 +628,45 @@ private fun ModelSettingsForm(
                             .padding(vertical = 16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
+                        // Icon picker
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { showIconPicker = true },
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                AutoAIIcon(
+                                    name = model.modelId,
+                                    customIcon = model.customIcon,
+                                    modifier = Modifier.size(40.dp),
+                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.setting_provider_page_model_icon),
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        text = if (model.customIcon == null)
+                                            stringResource(R.string.setting_provider_page_model_icon_auto)
+                                        else
+                                            stringResource(R.string.setting_provider_page_model_icon_custom),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Icon(HugeIcons.Edit03, contentDescription = null)
+                            }
+                        }
+
                         OutlinedTextField(
                             value = model.modelId,
                             onValueChange = {
@@ -689,6 +769,112 @@ private fun ModelSettingsForm(
                             onModelChange(model.copy(tools = tools))
                         }
                     )
+                }
+            }
+        }
+    }
+
+    if (showIconPicker) {
+        val sheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+        )
+        val coroutineScope = rememberCoroutineScope()
+        ModalBottomSheet(
+            onDismissRequest = { showIconPicker = false },
+            sheetState = sheetState,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.setting_provider_page_model_icon),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    IconButton(onClick = {
+                        coroutineScope.launch { sheetState.hide() }
+                        showIconPicker = false
+                    }) {
+                        Icon(HugeIcons.Cancel01, contentDescription = null)
+                    }
+                }
+
+                // Built-in icons grid
+                Text(
+                    text = stringResource(R.string.setting_provider_page_model_icon_built_in),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                val assetIcons = remember {
+                    context.assets.list("icons")?.toList()?.sorted() ?: emptyList()
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(48.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    gridItems(assetIcons) { iconFile ->
+                        val selected = model.customIcon == "asset:$iconFile"
+                        Surface(
+                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                   else MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.size(48.dp),
+                            onClick = {
+                                onModelChange(model.copy(customIcon = "asset:$iconFile"))
+                            }
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                AIIcon(
+                                    path = iconFile,
+                                    name = iconFile,
+                                    modifier = Modifier.size(32.dp),
+                                    color = Color.Transparent,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pick file button
+                Button(
+                    onClick = {
+                        coroutineScope.launch { sheetState.hide() }
+                        showIconPicker = false
+                        iconFileLauncher.launch("image/*")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(HugeIcons.Image03, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(stringResource(R.string.setting_provider_page_model_icon_pick_file))
+                }
+
+                // Reset button
+                if (model.customIcon != null) {
+                    TextButton(
+                        onClick = {
+                            onModelChange(model.copy(customIcon = null))
+                            coroutineScope.launch { sheetState.hide() }
+                            showIconPicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.setting_provider_page_model_icon_reset))
+                    }
                 }
             }
         }
@@ -931,7 +1117,8 @@ private fun ModelPicker(
                             ) {
                                 AutoAIIcon(
                                     it.modelId,
-                                    Modifier.size(32.dp)
+                                    Modifier.size(32.dp),
+                                    customIcon = it.customIcon,
                                 )
                                 Column(
                                     verticalArrangement = Arrangement.spacedBy(
@@ -1302,6 +1489,7 @@ private fun ModelCard(
                     AutoAIIcon(
                         name = model.modelId,
                         modifier = Modifier.size(36.dp),
+                        customIcon = model.customIcon,
                     )
                 }
                 Column(

@@ -94,7 +94,8 @@ fun ChatMessageAssistantAvatar(
                     AutoAIIcon(
                         name = model.modelId,
                         modifier = Modifier.size(28.dp),
-                        loading = loading
+                        loading = loading,
+                        customIcon = model.customIcon,
                     )
                 }
                 Row(

@@ -190,7 +190,8 @@ fun ModelSelector(
                         it, Modifier
                             .padding(end = 4.dp)
                             .size(36.dp),
-                        color = Color.Transparent
+                        color = Color.Transparent,
+                        customIcon = model?.customIcon,
                     )
                 }
                 Text(
@@ -223,7 +224,8 @@ fun ModelSelector(
                 AutoAIIcon(
                     modifier = Modifier.size(36.dp),
                     name = model.modelId,
-                    color = Color.Transparent
+                    color = Color.Transparent,
+                    customIcon = model.customIcon,
                 )
             } else {
                 Icon(
@@ -719,7 +721,8 @@ private fun ModelItem(
                         name = model.modelId,
                         modifier = Modifier
                             .padding(4.dp)
-                            .size(32.dp)
+                            .size(32.dp),
+                        customIcon = model.customIcon,
                     )
                 }
                 Column(

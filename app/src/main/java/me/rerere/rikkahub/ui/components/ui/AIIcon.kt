@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -23,7 +24,7 @@ import me.rerere.rikkahub.utils.computeAIIconByName
 import me.rerere.rikkahub.utils.toCssHex
 
 @Composable
-private fun AIIcon(
+internal fun AIIcon(
     path: String,
     name: String,
     modifier: Modifier = Modifier,
@@ -63,7 +64,36 @@ fun AutoAIIcon(
     modifier: Modifier = Modifier,
     loading: Boolean = false,
     color: Color = MaterialTheme.colorScheme.secondaryContainer,
+    customIcon: String? = null,
 ) {
+    if (customIcon != null) {
+        if (customIcon.startsWith("asset:")) {
+            val assetPath = customIcon.removePrefix("asset:")
+            AIIcon(
+                path = assetPath,
+                name = name,
+                modifier = modifier,
+                loading = loading,
+                color = color,
+            )
+        } else {
+            // file:// URI or http(s) URL — load directly
+            Surface(
+                modifier = modifier,
+                shape = rememberAvatarShape(loading),
+                color = color,
+            ) {
+                AsyncImage(
+                    model = customIcon,
+                    contentDescription = name,
+                    modifier = Modifier.padding(4.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
+        return
+    }
+
     val path = remember(name) { computeAIIconByName(name) } ?: run {
         TextAvatar(text = name, modifier = modifier, loading = loading, color = color)
         return

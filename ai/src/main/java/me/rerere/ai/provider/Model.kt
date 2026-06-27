@@ -22,6 +22,10 @@ data class Model(
     val supportedParameters: List<String> = emptyList(),
     val pricePromptPerToken: Double? = null,
     val priceCompletionPerToken: Double? = null,
+    // null = auto-detect via computeAIIconByName
+    // "asset:openai.svg" = built-in asset icon
+    // "file:///..." or "https://..." = custom file/URL
+    val customIcon: String? = null,
 )
 
 @Serializable

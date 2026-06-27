@@ -903,6 +903,13 @@
   <string name="setting_provider_page_balance_info">"Get account balance "</string>
   <string name="setting_provider_page_balance_json_key">Result Json Key</string>
   <string name="setting_provider_page_basic_settings">Basic Settings</string>
+  <string name="setting_provider_page_model_icon">Model Icon</string>
+  <string name="setting_provider_page_model_icon_auto">Auto-detected</string>
+  <string name="setting_provider_page_model_icon_custom">Custom</string>
+  <string name="setting_provider_page_model_icon_pick_builtin">Pick from built-in</string>
+  <string name="setting_provider_page_model_icon_pick_file">Pick image file</string>
+  <string name="setting_provider_page_model_icon_reset">Reset to auto</string>
+  <string name="setting_provider_page_model_icon_built_in">Built-in Icons</string>
   <string name="setting_provider_page_chat_model">Chat</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl">Prompt cache TTL</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl_1h">1 hour</string>
