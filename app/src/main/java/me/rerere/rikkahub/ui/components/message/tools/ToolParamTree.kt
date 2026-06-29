@@ -7,14 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +31,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
@@ -54,15 +55,16 @@ import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.rikkahub.ui.context.LocalToaster
 
-// Layout constants
-private val INDENT_WIDTH = 16.dp
-private val BRANCH_HORIZONTAL = 12.dp
-private val MAX_VALUE_LINES = 15
-private val MAX_TREE_HEIGHT = 300
+// Layout constants — wider indent for better curve visibility
+private const val INDENT_PX = 22f
+private const val BRANCH_PX = 18f
+private const val STROKE_WIDTH = 1.5f
+private const val MAX_VALUE_LINES = 15
+private const val MAX_TREE_HEIGHT = 300
 
 private val treeFont = FontFamily.Monospace
 private const val treeFontSize = 11f
-private const val treeLineHeight = 14f
+private const val treeLineHeight = 15f
 
 private val treeStyle = SpanStyle(
     fontFamily = treeFont,
@@ -80,8 +82,8 @@ private val valStyle = SpanStyle(
 )
 
 /**
- * Tree-style JSON parameter display using drawn lines (Canvas) instead of
- * box-drawing characters. Lines always connect perfectly regardless of font.
+ * Tree-style JSON display with smooth curved connectors drawn via Canvas.
+ * Lines are continuous (no gaps) with rounded bezier transitions.
  * Skips empty objects/arrays/blank values.
  */
 @Composable
@@ -155,11 +157,7 @@ private fun TreeNode(
     val keyColor = MaterialTheme.colorScheme.secondary
     val valColor = MaterialTheme.colorScheme.onSurfaceVariant
     val density = LocalDensity.current
-    val indentPx = with(density) { INDENT_WIDTH.toPx() }
-    val branchPx = with(density) { BRANCH_HORIZONTAL.toPx() }
     val rowHeight = with(density) { treeLineHeight.sp.toPx() }
-
-    val contentStartX = (depth + 1) * indentPx
 
     when (value) {
         is JsonObject -> {
@@ -171,8 +169,6 @@ private fun TreeNode(
                 isLast = isLast,
                 ancestorHasMore = ancestorHasMore,
                 lineColor = lineColor,
-                indentPx = indentPx,
-                branchPx = branchPx,
                 rowHeight = rowHeight,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -211,8 +207,6 @@ private fun TreeNode(
                 isLast = isLast,
                 ancestorHasMore = ancestorHasMore,
                 lineColor = lineColor,
-                indentPx = indentPx,
-                branchPx = branchPx,
                 rowHeight = rowHeight,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -251,7 +245,6 @@ private fun TreeNode(
             val allLines = content.lines()
             val truncated = allLines.size > MAX_VALUE_LINES
             val lines = if (truncated) allLines.take(MAX_VALUE_LINES) else allLines
-            val padAfterKey = " ".repeat(key.length + 2)
 
             val annotated = buildAnnotatedString {
                 withStyle(keyStyle.copy(color = keyColor)) { append("$key: ") }
@@ -287,8 +280,6 @@ private fun TreeNode(
                     isLast = isLast,
                     ancestorHasMore = ancestorHasMore,
                     lineColor = lineColor,
-                    indentPx = indentPx,
-                    branchPx = branchPx,
                     rowHeight = rowHeight,
                     modifier = Modifier.fillMaxWidth().then(copyModifier),
                     verticalAlignment = Alignment.Top,
@@ -306,8 +297,6 @@ private fun TreeNode(
                     isLast = isLast,
                     ancestorHasMore = ancestorHasMore,
                     lineColor = lineColor,
-                    indentPx = indentPx,
-                    branchPx = branchPx,
                     rowHeight = rowHeight,
                     modifier = Modifier.fillMaxWidth().then(copyModifier),
                     verticalAlignment = Alignment.Top,
@@ -325,9 +314,16 @@ private fun TreeNode(
 }
 
 /**
- * A single tree row with drawn connector lines.
- * Draws vertical lines for each ancestor level (if that ancestor has more siblings),
- * plus a horizontal branch + optional vertical line for this node.
+ * Tree row with smooth curved connectors drawn via Canvas Path.
+ *
+ * Each ancestor level draws a continuous vertical line that extends 1px
+ * beyond row bounds (top/bottom) to guarantee no gaps between rows.
+ *
+ * The branch connector from vertical spine to node content is a smooth
+ * bezier curve (quadraticTo) instead of a sharp 90-degree corner.
+ *
+ * Last child: curve turns right and stops (no vertical continuation).
+ * Non-last child: vertical continues through, curve branches right.
  */
 @Composable
 private fun TreeRow(
@@ -335,66 +331,75 @@ private fun TreeRow(
     isLast: Boolean,
     ancestorHasMore: List<Boolean>,
     lineColor: Color,
-    indentPx: Float,
-    branchPx: Float,
     rowHeight: Float,
     modifier: Modifier = Modifier,
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
     content: @Composable () -> Unit,
 ) {
     val drawModifier = Modifier.drawBehind {
-        // Draw ancestor vertical lines
+        val stroke = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Round)
+
+        // --- Ancestor vertical lines (continuous, extended to overlap) ---
         for (i in 0 until depth) {
             if (ancestorHasMore.getOrElse(i) { false }) {
-                val x = (i + 1) * indentPx
+                val x = (i + 1) * INDENT_PX
                 drawLine(
                     color = lineColor,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = 1f,
+                    start = Offset(x, -1f),
+                    end = Offset(x, size.height + 1f),
+                    strokeWidth = STROKE_WIDTH,
+                    cap = StrokeCap.Round,
                 )
             }
         }
 
-        // Draw this node's connector
-        val myX = depth * indentPx
-        val branchEndX = myX + indentPx + branchPx
+        // --- This node's connector ---
+        val spineX = (depth + 1) * INDENT_PX
+        val contentX = spineX + BRANCH_PX
         val centerY = rowHeight / 2f
 
-        // Horizontal line from indent to content
-        drawLine(
-            color = lineColor,
-            start = Offset(myX + indentPx * 0.5f, centerY),
-            end = Offset(branchEndX, centerY),
-            strokeWidth = 1f,
-        )
-
-        // Vertical line: full height if has more siblings, half height if last child
+        // Vertical spine for this node
         if (!isLast) {
-            val x = (depth + 1) * indentPx
+            // Not last: full height vertical (continuous through)
             drawLine(
                 color = lineColor,
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = 1f,
+                start = Offset(spineX, -1f),
+                end = Offset(spineX, size.height + 1f),
+                strokeWidth = STROKE_WIDTH,
+                cap = StrokeCap.Round,
             )
         } else {
-            // Last child: vertical line only from top to center (corner)
-            val x = (depth + 1) * indentPx
+            // Last child: vertical only from top to center, then smooth curve right
             drawLine(
                 color = lineColor,
-                start = Offset(x, 0f),
-                end = Offset(x, centerY),
-                strokeWidth = 1f,
+                start = Offset(spineX, -1f),
+                end = Offset(spineX, centerY),
+                strokeWidth = STROKE_WIDTH,
+                cap = StrokeCap.Round,
             )
         }
+
+        // Smooth bezier curve from spine to content
+        val curvePath = Path().apply {
+            moveTo(spineX, centerY)
+            // Quadratic bezier: control point at (spineX + BRANCH_PX/2, centerY)
+            // makes a smooth S-curve transition
+            quadraticTo(
+                spineX + BRANCH_PX * 0.5f, centerY,
+                contentX, centerY,
+            )
+        }
+        drawPath(curvePath, color = lineColor, style = stroke)
     }
+
+    // Content offset: indent * depth + branch width + a bit extra
+    val contentPadding = (depth * INDENT_PX + INDENT_PX + BRANCH_PX + 4).toInt()
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .then(drawModifier)
-            .padding(start = ((depth + 1) * 16 + 14).dp),
+            .padding(start = contentPadding.dp),
         verticalAlignment = verticalAlignment,
     ) {
         content()
