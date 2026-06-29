@@ -337,7 +337,8 @@ private fun TreeRow(
     content: @Composable () -> Unit,
 ) {
     val drawModifier = Modifier.drawBehind {
-        val stroke = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Round)
+        val strokeRound = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Round)
+        val strokeButt = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Butt)
 
         // --- Ancestor vertical lines (continuous, extended to overlap) ---
         for (i in 0 until depth) {
@@ -358,9 +359,8 @@ private fun TreeRow(
         val contentX = spineX + BRANCH_PX
         val centerY = rowHeight / 2f
 
-        // Vertical spine for this node
         if (!isLast) {
-            // Not last: full height vertical (continuous through)
+            // Non-last: full height vertical line (round cap for row continuity)
             drawLine(
                 color = lineColor,
                 start = Offset(spineX, -1f),
@@ -368,28 +368,28 @@ private fun TreeRow(
                 strokeWidth = STROKE_WIDTH,
                 cap = StrokeCap.Round,
             )
+            // Branch curve: butt cap — no dot where it meets the vertical
+            val branchPath = Path().apply {
+                moveTo(spineX, centerY)
+                quadraticTo(
+                    spineX + BRANCH_PX * 0.5f, centerY,
+                    contentX, centerY,
+                )
+            }
+            drawPath(branchPath, color = lineColor, style = strokeButt)
         } else {
-            // Last child: vertical only from top to center, then smooth curve right
-            drawLine(
-                color = lineColor,
-                start = Offset(spineX, -1f),
-                end = Offset(spineX, centerY),
-                strokeWidth = STROKE_WIDTH,
-                cap = StrokeCap.Round,
-            )
+            // Last child: merge vertical + curve into ONE continuous path
+            // No junction point, no overlapping caps, no dot
+            val fullPath = Path().apply {
+                moveTo(spineX, -1f)
+                lineTo(spineX, centerY)
+                quadraticTo(
+                    spineX + BRANCH_PX * 0.5f, centerY,
+                    contentX, centerY,
+                )
+            }
+            drawPath(fullPath, color = lineColor, style = strokeRound)
         }
-
-        // Smooth bezier curve from spine to content
-        val curvePath = Path().apply {
-            moveTo(spineX, centerY)
-            // Quadratic bezier: control point at (spineX + BRANCH_PX/2, centerY)
-            // makes a smooth S-curve transition
-            quadraticTo(
-                spineX + BRANCH_PX * 0.5f, centerY,
-                contentX, centerY,
-            )
-        }
-        drawPath(curvePath, color = lineColor, style = stroke)
     }
 
     // Content offset: indent * depth + branch width + a bit extra
