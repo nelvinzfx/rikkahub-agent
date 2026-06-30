@@ -266,8 +266,16 @@ private fun TreeNode(
             val context = LocalContext.current
             val toaster = LocalToaster.current
 
-            val allLines = content.lines()
-            val truncated = allLines.size > MAX_VALUE_LINES
+            // Strip trailing blank lines BEFORE counting so the line count reflects real
+            // content. String.lines() yields a trailing empty element for a trailing
+            // newline ("a\nb\n" -> [a, b, ""]), which would over-count by 1+ and could
+            // show a misleading "1 more lines" when nothing real was actually hidden.
+            val allLines = content.trimEnd('\n', '\r').lines()
+            // Only truncate when there are genuinely MORE non-empty lines beyond the cap.
+            // If everything past MAX_VALUE_LINES is blank, hiddenCount drops to 0 and we
+            // show the full thing instead of a deceptive "view details" with empty tail.
+            val hiddenCount = allLines.drop(MAX_VALUE_LINES).count { it.isNotBlank() }
+            val truncated = hiddenCount > 0
             val lines = if (truncated) allLines.take(MAX_VALUE_LINES) else allLines
 
             val annotated = buildAnnotatedString {
@@ -278,7 +286,7 @@ private fun TreeNode(
                     withStyle(valStyle.copy(color = valColor)) { append(lines[i]) }
                 }
                 if (truncated) {
-                    append("\n... (${allLines.size - MAX_VALUE_LINES} more lines, view details)")
+                    append("\n... ($hiddenCount more lines, view details)")
                 }
             }
 
