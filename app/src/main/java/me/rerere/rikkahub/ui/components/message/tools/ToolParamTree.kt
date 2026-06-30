@@ -395,9 +395,6 @@ private fun TreeRow(
         // from y=0..height so the verticals meet seamlessly with zero overlap = no dots.
         val strokeButt = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Butt)
 
-        // Curve radius: how far up the vertical the bend starts AND how far right it
-        // reaches before settling horizontal. Bigger = rounder, gentler corner.
-        val curveRadius = BRANCH_PX * 0.9f
         val phase = flowPhase?.value
 
         // --- Ancestor vertical lines (continuous through the row) ---
@@ -417,6 +414,17 @@ private fun TreeRow(
         val spineX = (depth + 1) * INDENT_PX
         val contentX = spineX + BRANCH_PX
         val centerY = size.height / 2f
+
+        // Curve radius: how far up the vertical the bend starts AND how far right it
+        // reaches before settling horizontal. Bigger = rounder. MUST be clamped to the
+        // vertical room actually available in this row — the desired 16px easily exceeds
+        // half the row height on a single-line value (centerY can be ~7-20px). Unclamped,
+        // (centerY - curveRadius) goes NEGATIVE and (centerY + curveRadius) exceeds
+        // height, so the bend's vertical leg renders past the row bounds and overlaps the
+        // neighbouring row's line in the same column — the visible "thick vertical bar".
+        // Clamp keeps the bend inside [0, height] so nothing bleeds into adjacent rows.
+        val curveRadius = minOf(BRANCH_PX * 0.9f, centerY, size.height - centerY)
+            .coerceAtLeast(0f)
 
         // Three connector shapes, all corner-rounded with NO sharp/pointed tips:
         //  - First child (top of the brace): vertical continues DOWN to its siblings,
