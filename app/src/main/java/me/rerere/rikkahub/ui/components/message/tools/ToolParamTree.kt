@@ -337,20 +337,24 @@ private fun TreeRow(
     content: @Composable () -> Unit,
 ) {
     val drawModifier = Modifier.drawBehind {
-        val strokeSquare = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Square)
+        // Butt cap = line ends exactly at endpoint, no overhang. Adjacent rows draw
+        // from y=0..height so the verticals meet seamlessly with zero overlap = no dots.
         val strokeButt = Stroke(width = STROKE_WIDTH, cap = StrokeCap.Butt)
 
-        // --- Ancestor vertical lines (continuous, extended to overlap) ---
-        // Square cap: flat ends, extends half-width for clean overlap with adjacent rows
+        // Curve radius: how far up the vertical the bend starts AND how far right it
+        // reaches before settling horizontal. Bigger = rounder, gentler corner.
+        val curveRadius = BRANCH_PX * 0.9f
+
+        // --- Ancestor vertical lines (continuous through the row) ---
         for (i in 0 until depth) {
             if (ancestorHasMore.getOrElse(i) { false }) {
                 val x = (i + 1) * INDENT_PX
                 drawLine(
                     color = lineColor,
-                    start = Offset(x, -1f),
-                    end = Offset(x, size.height + 1f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
                     strokeWidth = STROKE_WIDTH,
-                    cap = StrokeCap.Square,
+                    cap = StrokeCap.Butt,
                 )
             }
         }
@@ -358,37 +362,43 @@ private fun TreeRow(
         // --- This node's connector ---
         val spineX = (depth + 1) * INDENT_PX
         val contentX = spineX + BRANCH_PX
-        val centerY = rowHeight / 2f
+        val centerY = size.height / 2f
 
         if (!isLast) {
-            // Non-last: full height vertical (square cap for row continuity)
+            // Non-last: full-height vertical, drawn 0..height to butt against neighbours.
             drawLine(
                 color = lineColor,
-                start = Offset(spineX, -1f),
-                end = Offset(spineX, size.height + 1f),
+                start = Offset(spineX, 0f),
+                end = Offset(spineX, size.height),
                 strokeWidth = STROKE_WIDTH,
-                cap = StrokeCap.Square,
+                cap = StrokeCap.Butt,
             )
-            // Branch curve: butt cap — no dot where it meets the vertical
+            // Rounded branch: come down to (centerY - curveRadius), then a smooth
+            // cubic bend out to the content. Single path, no junction dot.
             val branchPath = Path().apply {
-                moveTo(spineX, centerY)
-                quadraticTo(
-                    spineX + BRANCH_PX * 0.5f, centerY,
-                    contentX, centerY,
+                moveTo(spineX, centerY - curveRadius)
+                cubicTo(
+                    spineX, centerY,
+                    spineX, centerY,
+                    spineX + curveRadius, centerY,
                 )
+                lineTo(contentX, centerY)
             }
             drawPath(branchPath, color = lineColor, style = strokeButt)
         } else {
-            // Last child: merge vertical + curve into ONE continuous path
+            // Last child: vertical from top down to where the bend begins, then the
+            // same rounded corner out to the content — one continuous path.
             val fullPath = Path().apply {
-                moveTo(spineX, -1f)
-                lineTo(spineX, centerY)
-                quadraticTo(
-                    spineX + BRANCH_PX * 0.5f, centerY,
-                    contentX, centerY,
+                moveTo(spineX, 0f)
+                lineTo(spineX, centerY - curveRadius)
+                cubicTo(
+                    spineX, centerY,
+                    spineX, centerY,
+                    spineX + curveRadius, centerY,
                 )
+                lineTo(contentX, centerY)
             }
-            drawPath(fullPath, color = lineColor, style = strokeSquare)
+            drawPath(fullPath, color = lineColor, style = strokeButt)
         }
     }
 
