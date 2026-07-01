@@ -3,6 +3,7 @@ package me.rerere.rikkahub.service
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -11,7 +12,9 @@ import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
@@ -23,8 +26,14 @@ import android.widget.TextView
 object AgentOverlay {
     private const val TAG = "AgentOverlay"
 
-    @Volatile private var view: TextView? = null
+    @Volatile private var view: View? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Split-point of the pill text. Everything before SPLIT_WORD is rendered as plain
+    // bold white; SPLIT_WORD itself is rendered via [GradientTextView] so only that
+    // segment carries the animated 3-colour flowing gradient. Keep this in sync with
+    // the default text passed to [show].
+    private const val SPLIT_WORD = "working"
 
     fun canShow(context: Context): Boolean = Settings.canDrawOverlays(context)
 
@@ -46,21 +55,49 @@ object AgentOverlay {
     private fun showInternal(app: Context, text: String) {
         val existing = view
         if (existing != null) {
-            existing.text = text
+            // Overlay already on screen; no text mutation needed — the pill text is
+            // static ("The agent is working") and the gradient is driven by its own
+            // animator, so re-calling show() is a no-op.
             return
         }
         val wm = app.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val tv = TextView(app).apply {
-            this.text = text
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            val pad = (12 * app.resources.displayMetrics.density).toInt()
-            val padV = (6 * app.resources.displayMetrics.density).toInt()
+
+        val density = app.resources.displayMetrics.density
+        val pad = (12 * density).toInt()
+        val padV = (6 * density).toInt()
+        val textSize = 12f
+
+        // Split the pill text into a plain prefix and the gradient-painted SPLIT_WORD,
+        // falling back to a single TextView if the word isn't present (defensive — keeps
+        // callers that pass custom text working without crashing).
+        val splitIdx = text.lastIndexOf(SPLIT_WORD)
+        val prefix = if (splitIdx >= 0) text.substring(0, splitIdx) else text
+        val working = if (splitIdx >= 0) SPLIT_WORD else null
+
+        val container = LinearLayout(app).apply {
+            orientation = LinearLayout.HORIZONTAL
             setPadding(pad, padV, pad, padV)
             background = GradientDrawable().apply {
                 cornerRadius = 100f
                 setColor(0xCC202020.toInt())
             }
+        }
+        if (prefix.isNotEmpty()) {
+            container.addView(TextView(app).apply {
+                this.text = prefix
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, textSize)
+                includeFontPadding = false
+            })
+        }
+        if (working != null) {
+            container.addView(GradientTextView(app).apply {
+                this.text = working
+                setTypeface(typeface, Typeface.BOLD)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, textSize)
+                includeFontPadding = false
+            })
         }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -83,8 +120,8 @@ object AgentOverlay {
             y = (64 * app.resources.displayMetrics.density).toInt()
         }
         try {
-            wm.addView(tv, params)
-            view = tv
+            wm.addView(container, params)
+            view = container
         } catch (t: Throwable) {
             Log.w(TAG, "addView failed", t)
         }
