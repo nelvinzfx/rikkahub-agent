@@ -24,15 +24,14 @@ class GradientTextView @JvmOverloads constructor(
     defStyleAttr: Int = android.R.attr.textViewStyle,
 ) : TextView(context, attrs, defStyleAttr) {
 
-    // Three-colour flowing palette: violet → cyan → pink → (loops back to violet).
-    // The trailing duplicate of index 0 keeps the seam invisible when TileMode.REPEAT
-    // wraps the gradient window — without it, the wrap jumps from pink straight to
-    // violet and looks like a flicker.
+    // Bright RGB palette — red → green → blue → (loops back to red). Last entry
+    // duplicates the first so TileMode.REPEAT wraps the gradient with no visible
+    // seam at the window edge.
     private val colors = intArrayOf(
-        0xFF7B61FF.toInt(),
-        0xFF00E5FF.toInt(),
-        0xFFFF61C7.toInt(),
-        0xFF7B61FF.toInt(),
+        0xFFFF1744.toInt(),  // vivid red
+        0xFF00E676.toInt(),  // vivid green
+        0xFF2979FF.toInt(),  // vivid blue
+        0xFFFF1744.toInt(),  // duplicate for seamless wrap
     )
 
     private var phase = 0f
@@ -47,13 +46,15 @@ class GradientTextView @JvmOverloads constructor(
             invalidate()
         }
     }
-
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat().coerceAtLeast(1f)
-        // Shift the gradient window one full width per cycle. Width = 2*w so all
-        // three colours are visible across the text at any phase, and REPEAT tiles
-        // it seamlessly so the seam never lands inside the visible text region.
-        val shift = phase * w
+        // CRITICAL for a seamless infinite loop: the gradient's repeat period is 2*w,
+        // so the shift must travel exactly that distance per cycle. Previously it only
+        // travelled w (= half a period), which meant phase=1 landed at a gradient offset
+        // that did NOT match phase=0 — so RESTART jumped the offset back and the visible
+        // colours snapped, reading as a stutter/kink at the loop seam. With 2*w the
+        // offset at phase=1 is identical to phase=0, so the restart is invisible.
+        val shift = phase * 2 * w
         paint.shader = LinearGradient(
             shift, 0f,
             shift + 2 * w, 0f,
